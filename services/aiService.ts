@@ -1,37 +1,81 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
+import { CommunityInfo } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+export interface Contractor {
+  name: string;
+  specialty: string;
+  website: string;
+  phone: string;
+  note: string;
+}
+
 export interface AiSuggestion {
-  text: string;
+  analysis: string;
+  contractors: Contractor[];
+  estimatedBudget: string;
   sources: { uri: string; title: string }[];
 }
 
 export const generateSolutionSuggestion = async (
   title: string,
-  description: string
+  description: string,
+  community: CommunityInfo
 ): Promise<AiSuggestion> => {
   try {
+    const prompt = `
+      You are an expert property manager assistant for "${community.name}", a condo building with ${community.units} units located at ${community.address}, ${community.city}, ${community.state} ${community.zipCode}.
+
+      Issue: "${title}"
+      Description: "${description}"
+
+      Task:
+      1. **Analyze**: Briefly validate the problem and create a step-by-step action plan.
+      2. **Search**: Use Google Search to find 2-3 specific, highly-rated local contractors in ${community.city}, ${community.state} relevant to this issue.
+      3. **Structure**: Return the result as JSON.
+         - For contractors, include Name, Phone, Website, Specialty, and a Note (including any pricing mentions found).
+         - Include an estimated budget range for the whole project.
+    `;
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `You are a helpful expert assistant for a condo community.
-      
-      Community Issue: "${title}"
-      Context: "${description}"
-      
-      Please suggest a concrete, professional solution.
-      Include:
-      1. A clear action plan.
-      2. An estimated cost range (e.g., "$500 - $1,000").
-      3. Reasoning based on industry standards or similar projects.
-      
-      Use Google Search to validate costs and find relevant local regulations or examples if applicable.`,
+      contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            analysis: {
+              type: Type.STRING,
+              description: "Markdown text with validation of the problem and a step-by-step action plan."
+            },
+            contractors: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  specialty: { type: Type.STRING },
+                  website: { type: Type.STRING },
+                  phone: { type: Type.STRING },
+                  note: { type: Type.STRING, description: "Why they are a good fit and any specific pricing info found." },
+                },
+                required: ["name", "specialty"]
+              }
+            },
+            estimatedBudget: {
+              type: Type.STRING,
+              description: "Estimated cost range for the project."
+            }
+          }
+        }
       },
     });
 
-    const text = response.text || "No suggestion generated.";
+    const jsonText = response.text || "{}";
+    const parsed = JSON.parse(jsonText);
     
     // Extract unique sources from grounding chunks
     const rawSources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
@@ -43,11 +87,18 @@ export const generateSolutionSuggestion = async (
     const uniqueSources = Array.from(new Map(sources.map((s: any) => [s.uri, s])).values()) as { uri: string; title: string }[];
 
     return {
-      text,
+      analysis: parsed.analysis || "No analysis generated.",
+      contractors: parsed.contractors || [],
+      estimatedBudget: parsed.estimatedBudget || "Unknown",
       sources: uniqueSources
     };
   } catch (error) {
     console.error("AI Service Error:", error);
-    throw new Error("Failed to generate suggestion. Please check your connection and try again.");
+    return {
+        analysis: "Failed to generate structured data. Please try again.",
+        contractors: [],
+        estimatedBudget: "",
+        sources: []
+    };
   }
 };

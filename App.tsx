@@ -2,18 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { Issue, IssueStage, User } from './types';
 import { MOCK_USERS } from './constants';
 import * as storage from './services/storageService';
-import { PulseMeter } from './components/PulseMeter';
-import { Dashboard } from './views/Dashboard';
+import { BoardView } from './views/Dashboard';
 import { IssueDetail } from './views/IssueDetail';
-import { ProfileEditor } from './components/ProfileEditor';
-import { Building, LogOut, User as UserIcon, Settings } from 'lucide-react';
+import { CondoView } from './views/CondoView';
+import { HistoryView } from './views/HistoryView';
+import { ProfileView } from './views/ProfileView';
+import { Sidebar, BottomNav } from './components/Navigation';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User>(storage.getCurrentUser());
   const [issues, setIssues] = useState<Issue[]>([]);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'issue'>('dashboard');
+  
+  // Navigation State
+  const [activeTab, setActiveTab] = useState('board');
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
-  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     setIssues(storage.getIssues());
@@ -38,12 +40,16 @@ const App: React.FC = () => {
       title,
       description: desc,
       category,
-      stage: IssueStage.VALIDATE, // Starts at Validation
+      stage: IssueStage.VALIDATE,
       authorId: currentUser.id,
       authorName: currentUser.name,
       createdAt: new Date().toISOString(),
-      supporters: [currentUser.id], // Author automatically supports
-      solutions: []
+      supporters: [currentUser.id],
+      upvotes: [currentUser.id], // Auto upvote own issue
+      downvotes: [],
+      solutions: [],
+      comments: [],
+      views: 0
     };
     
     const updated = [newIssue, ...issues];
@@ -57,119 +63,107 @@ const App: React.FC = () => {
     storage.saveIssues(updatedIssues);
   };
 
+  const handleVote = (issueId: string, type: 'up' | 'down') => {
+    const issue = issues.find(i => i.id === issueId);
+    if (!issue) return;
+
+    let newUpvotes = [...(issue.upvotes || [])];
+    let newDownvotes = [...(issue.downvotes || [])];
+
+    // Remove existing vote if any
+    newUpvotes = newUpvotes.filter(id => id !== currentUser.id);
+    newDownvotes = newDownvotes.filter(id => id !== currentUser.id);
+
+    // Add new vote if distinct from previous state (toggle off logic)
+    const wasUpvoted = issue.upvotes?.includes(currentUser.id);
+    const wasDownvoted = issue.downvotes?.includes(currentUser.id);
+
+    if (type === 'up' && !wasUpvoted) {
+        newUpvotes.push(currentUser.id);
+    } else if (type === 'down' && !wasDownvoted) {
+        newDownvotes.push(currentUser.id);
+    }
+
+    handleUpdateIssue({
+        ...issue,
+        upvotes: newUpvotes,
+        downvotes: newDownvotes
+    });
+  };
+
   const handleNavigate = (view: string, id?: string) => {
-    if (view === 'dashboard') {
-      setCurrentView('dashboard');
-      setSelectedIssueId(null);
-    } else if (view === 'issue' && id) {
+    if (view === 'issue' && id) {
       setSelectedIssueId(id);
-      setCurrentView('issue');
+      setActiveTab('issue'); // Virtual tab for detail view
+    } else {
+      setActiveTab(view);
+      setSelectedIssueId(null);
     }
   };
 
-  const selectedIssue = issues.find(i => i.id === selectedIssueId);
+  const renderContent = () => {
+    if (activeTab === 'issue' && selectedIssueId) {
+       const selectedIssue = issues.find(i => i.id === selectedIssueId);
+       if (selectedIssue) {
+           return (
+             <IssueDetail 
+               issue={selectedIssue}
+               currentUser={currentUser}
+               onBack={() => setActiveTab('board')}
+               onUpdateIssue={handleUpdateIssue}
+             />
+           );
+       }
+    }
+
+    switch (activeTab) {
+      case 'board':
+        return (
+          <BoardView 
+            issues={issues} 
+            currentUserId={currentUser.id}
+            onNavigate={handleNavigate}
+            onCreateIssue={handleCreateIssue}
+            onVote={handleVote}
+          />
+        );
+      case 'history':
+        return (
+          <HistoryView 
+            issues={issues}
+            currentUserId={currentUser.id}
+            onNavigate={handleNavigate}
+          />
+        );
+      case 'condo':
+        return <CondoView />;
+      case 'profile':
+        return (
+          <ProfileView 
+             user={currentUser} 
+             onUpdateUser={handleUpdateUser}
+             onSwitchUser={handleUserSwitch}
+          />
+        );
+      default:
+        return <BoardView issues={issues} currentUserId={currentUser.id} onNavigate={handleNavigate} onCreateIssue={handleCreateIssue} onVote={handleVote} />;
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* Navbar */}
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div 
-            className="flex items-center gap-2 cursor-pointer" 
-            onClick={() => handleNavigate('dashboard')}
-          >
-            <div className="bg-indigo-600 p-1.5 rounded-lg">
-              <Building className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-slate-800">OurVoice</span>
-          </div>
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex">
+      {/* Desktop Sidebar */}
+      <Sidebar activeTab={activeTab === 'issue' ? 'board' : activeTab} onTabChange={setActiveTab} currentUser={currentUser} />
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-slate-100 rounded-full pl-3 pr-2 py-1">
-              <div className="w-6 h-6 rounded-full overflow-hidden bg-slate-300">
-                <img src={currentUser.avatarUrl} alt="User" className="w-full h-full object-cover" />
-              </div>
-              <select 
-                value={currentUser.id}
-                onChange={(e) => handleUserSwitch(e.target.value)}
-                className="bg-transparent text-sm font-medium text-slate-700 outline-none cursor-pointer max-w-[120px]"
-              >
-                {MOCK_USERS.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-              <button 
-                onClick={() => setShowProfile(true)}
-                className="p-1.5 rounded-full hover:bg-white text-slate-400 hover:text-indigo-600 transition-all"
-                title="Edit Profile"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* Main Content Area */}
-          <div className="lg:col-span-8">
-            {currentView === 'dashboard' && (
-              <Dashboard 
-                issues={issues} 
-                onNavigate={handleNavigate}
-                onCreateIssue={handleCreateIssue}
-              />
-            )}
-            
-            {currentView === 'issue' && selectedIssue && (
-              <IssueDetail 
-                issue={selectedIssue}
-                currentUser={currentUser}
-                onBack={() => handleNavigate('dashboard')}
-                onUpdateIssue={handleUpdateIssue}
-              />
-            )}
-          </div>
-
-          {/* Sidebar (Pulse Meter) */}
-          <div className="hidden lg:block lg:col-span-4">
-            <PulseMeter />
-            
-            {/* Quick Context Help */}
-            <div className="mt-6 bg-blue-50 p-4 rounded-xl text-sm text-blue-800 border border-blue-100">
-              <h4 className="font-bold mb-2 flex items-center gap-2">
-                <UserIcon className="w-4 h-4" /> 
-                Role: {currentUser.role}
-              </h4>
-              <p className="opacity-90">
-                You are currently viewing as <strong>{currentUser.name}</strong>.
-              </p>
-              {currentUser.skills && currentUser.skills.length > 0 ? (
-                 <div className="mt-2 flex flex-wrap gap-1">
-                   {currentUser.skills.map(s => (
-                     <span key={s} className="bg-blue-100 text-blue-900 text-xs px-2 py-0.5 rounded border border-blue-200">{s}</span>
-                   ))}
-                 </div>
-              ) : (
-                <p className="mt-2 text-xs opacity-70">No skills added yet. Click the settings icon in the navbar to add your expertise.</p>
-              )}
-            </div>
-          </div>
+      {/* Main Content */}
+      <main className="flex-1 min-w-0">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 lg:pb-8">
+           {renderContent()}
         </div>
       </main>
 
-      {/* Profile Modal */}
-      {showProfile && (
-        <ProfileEditor 
-          user={currentUser}
-          onSave={handleUpdateUser}
-          onClose={() => setShowProfile(false)}
-        />
-      )}
+      {/* Mobile Bottom Nav */}
+      <BottomNav activeTab={activeTab === 'issue' ? 'board' : activeTab} onTabChange={setActiveTab} currentUser={currentUser} />
     </div>
   );
 };

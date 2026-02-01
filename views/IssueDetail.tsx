@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Issue, IssueStage, User, Solution, UserRole } from '../types';
+import { Issue, IssueStage, User, Solution, UserRole, Comment } from '../types';
 import { StageStepper } from '../components/StageStepper';
 import { ExpertBadge } from '../components/ExpertBadge';
 import { ImpactCalculator } from '../components/ImpactCalculator';
-import { ArrowLeft, Check, ThumbsUp, DollarSign, Send, Lock, Sparkles, ExternalLink, Loader2 } from 'lucide-react';
-import { generateSolutionSuggestion, AiSuggestion } from '../services/aiService';
+import { ArrowLeft, Check, ThumbsUp, DollarSign, Send, Lock, Sparkles, ExternalLink, Loader2, Phone, Globe, ChevronDown, ChevronUp, ClipboardList, PlusCircle, MessageCircle, MoreVertical, Flag, MessageSquare } from 'lucide-react';
+import { generateSolutionSuggestion, AiSuggestion, Contractor } from '../services/aiService';
+import { COMMUNITY_INFO } from '../constants';
+import ReactMarkdown from 'react-markdown';
 
 interface IssueDetailProps {
   issue: Issue;
@@ -16,10 +18,12 @@ interface IssueDetailProps {
 export const IssueDetail: React.FC<IssueDetailProps> = ({ issue, currentUser, onBack, onUpdateIssue }) => {
   const [solutionDesc, setSolutionDesc] = useState('');
   const [solutionCost, setSolutionCost] = useState<number | ''>('');
+  const [newComment, setNewComment] = useState('');
   
   // AI State
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
+  const [showFullAnalysis, setShowFullAnalysis] = useState(false);
 
   // STAGE 2: VALIDATE LOGIC
   const handleSupport = () => {
@@ -44,18 +48,25 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ issue, currentUser, on
   const handleAiSuggest = async () => {
     setIsAiLoading(true);
     setAiSuggestion(null);
+    setShowFullAnalysis(false);
     try {
-      const result = await generateSolutionSuggestion(issue.title, issue.description);
+      const result = await generateSolutionSuggestion(issue.title, issue.description, COMMUNITY_INFO);
       setAiSuggestion(result);
-      if (!solutionDesc) {
-        setSolutionDesc(result.text); // Pre-fill description if empty
-      }
     } catch (error) {
       console.error(error);
       alert("Failed to get AI suggestions. Please try again.");
     } finally {
       setIsAiLoading(false);
     }
+  };
+
+  const handleUseContractor = (contractor: Contractor) => {
+    const desc = `I propose we hire **${contractor.name}**.\n\n**Specialty:** ${contractor.specialty}\n**Note:** ${contractor.note}\n\n**Contact:**\nPhone: ${contractor.phone}\nWebsite: ${contractor.website}\n\n(I have called to verify availability)`;
+    setSolutionDesc(desc);
+    const formElement = document.getElementById('solution-form');
+    if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
+    const costInput = document.getElementById('cost-input');
+    if (costInput) costInput.focus();
   };
 
   // STAGE 3: IDEATE LOGIC
@@ -67,7 +78,7 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ issue, currentUser, on
       id: `s_${Date.now()}`,
       authorId: currentUser.id,
       authorName: currentUser.name,
-      authorSkills: currentUser.skills, // Include skills in the solution snapshot
+      authorSkills: currentUser.skills,
       description: solutionDesc,
       estimatedCost: Number(solutionCost),
       votes: []
@@ -83,20 +94,16 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ issue, currentUser, on
     setAiSuggestion(null);
   };
 
-  // ADMIN ACTION: Move to Vote
   const handleMoveToVote = () => {
     onUpdateIssue({ ...issue, stage: IssueStage.VOTE });
   };
 
-  // STAGE 4: VOTE LOGIC
   const handleVote = (solutionId: string) => {
-    // Remove previous vote if exists
     const cleanSolutions = issue.solutions.map(s => ({
       ...s,
       votes: s.votes.filter(uid => uid !== currentUser.id)
     }));
 
-    // Add new vote
     const updatedSolutions = cleanSolutions.map(s => {
       if (s.id === solutionId) {
         return { ...s, votes: [...s.votes, currentUser.id] };
@@ -110,98 +117,157 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ issue, currentUser, on
     });
   };
 
+  const handlePostComment = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newComment.trim()) return;
+
+      const comment: Comment = {
+          id: `c_${Date.now()}`,
+          authorId: currentUser.id,
+          authorName: currentUser.name,
+          authorSkills: currentUser.skills,
+          text: newComment,
+          createdAt: new Date().toISOString()
+      };
+
+      onUpdateIssue({
+          ...issue,
+          comments: [...(issue.comments || []), comment]
+      });
+      setNewComment('');
+  };
+
   const isSupported = issue.supporters.includes(currentUser.id);
   const totalVotes = issue.solutions.reduce((acc, s) => acc + s.votes.length, 0);
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-      <button 
-        onClick={onBack}
-        className="text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium text-sm"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to Board
-      </button>
-
-      {/* Header */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex justify-between items-start mb-4">
-          <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
-            {issue.category}
-          </span>
-          <span className="text-sm text-slate-400">
-            Raised by {issue.authorName} on {new Date(issue.createdAt).toLocaleDateString()}
-          </span>
+    <div className="max-w-4xl mx-auto space-y-8 pb-32 animate-in fade-in slide-in-from-bottom-4">
+      
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-between px-1">
+        <button 
+          onClick={onBack}
+          className="bg-white/50 backdrop-blur-md p-2 rounded-full hover:bg-white transition-colors border border-white/50 shadow-sm"
+        >
+          <ArrowLeft className="w-5 h-5 text-slate-600" />
+        </button>
+        <div className="flex gap-2">
+            <button className="bg-white/50 backdrop-blur-md p-2 rounded-full hover:bg-white transition-colors border border-white/50 shadow-sm">
+                <Flag className="w-5 h-5 text-slate-400" />
+            </button>
+            <button className="bg-white/50 backdrop-blur-md p-2 rounded-full hover:bg-white transition-colors border border-white/50 shadow-sm">
+                <MoreVertical className="w-5 h-5 text-slate-400" />
+            </button>
         </div>
-        <h1 className="text-3xl font-bold text-slate-900 mb-3">{issue.title}</h1>
-        <p className="text-lg text-slate-600 leading-relaxed">{issue.description}</p>
+      </div>
+
+      {/* Main Issue Header Card */}
+      <div className="bg-white rounded-[2.5rem] p-8 shadow-[0_8px_40px_rgb(0,0,0,0.03)] border border-white relative overflow-hidden">
+        {/* Background Accent */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50"></div>
         
-        <div className="mt-8">
-          <StageStepper currentStage={issue.stage} />
+        <div className="relative z-10 space-y-4">
+          <div className="flex flex-wrap gap-2 items-center">
+             <span className="text-[10px] font-black px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full uppercase tracking-wider border border-indigo-100">
+               {issue.category}
+             </span>
+             <span className="text-[10px] font-bold text-slate-400">
+                Opened {new Date(issue.createdAt).toLocaleDateString()}
+             </span>
+          </div>
+
+          <h1 className="text-4xl font-black text-slate-900 leading-tight tracking-tight">
+            {issue.title}
+          </h1>
+          
+          <div className="flex items-center gap-3">
+             <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-slate-500">{issue.authorName.charAt(0)}</span>
+             </div>
+             <p className="text-sm font-bold text-slate-400">Raised by <span className="text-slate-900">{issue.authorName}</span></p>
+          </div>
+
+          <div className="pt-4 border-t border-slate-50">
+             <p className="text-lg text-slate-600 leading-relaxed font-medium">
+               {issue.description}
+             </p>
+          </div>
+          
+          <div className="pt-8">
+            <StageStepper currentStage={issue.stage} />
+          </div>
         </div>
       </div>
 
       {/* STAGE 2: VALIDATION SECTION */}
       {issue.stage === IssueStage.VALIDATE && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-orange-100 ring-1 ring-orange-500/10">
-          <div className="text-center py-6">
-            <h3 className="text-xl font-bold text-slate-800 mb-2">Needs Community Validation</h3>
-            <p className="text-slate-500 mb-6 max-w-md mx-auto">
-              This issue needs 5 residents to support it before we can move to the solution phase.
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100/30 rounded-[2.5rem] p-10 border border-orange-100/50 text-center animate-in zoom-in-95 duration-500">
+            <h3 className="text-2xl font-black text-orange-950 mb-3 tracking-tight">Gathering Support</h3>
+            <p className="text-orange-900/60 font-bold text-sm max-w-sm mx-auto mb-8">
+              Community validation prevents spam. We need a quorum of 5 supporters to start finding solutions.
             </p>
             
-            <div className="flex justify-center mb-6">
-               <div className="bg-slate-100 rounded-full h-4 w-64 overflow-hidden">
+            <div className="max-w-xs mx-auto mb-8">
+               <div className="bg-orange-200/50 rounded-full h-3 overflow-hidden shadow-inner border border-orange-200/50">
                   <div 
-                    className="bg-orange-500 h-full transition-all duration-500" 
+                    className="bg-orange-500 h-full transition-all duration-1000 ease-out" 
                     style={{ width: `${Math.min((issue.supporters.length / 5) * 100, 100)}%` }}
                   ></div>
                </div>
+               <div className="flex justify-between mt-3 px-1">
+                  <span className="text-xs font-black text-orange-700 uppercase tracking-widest">{issue.supporters.length} Supporters</span>
+                  <span className="text-xs font-black text-orange-900/30 uppercase tracking-widest">Goal: 5</span>
+               </div>
             </div>
-            <p className="text-sm font-bold text-orange-600 mb-6">{issue.supporters.length} / 5 Supporters</p>
 
             <button
               onClick={handleSupport}
               disabled={isSupported}
               className={`
-                px-8 py-3 rounded-full font-bold text-lg flex items-center justify-center gap-2 mx-auto transition-all
+                px-10 py-5 rounded-[2rem] font-black text-lg flex items-center justify-center gap-3 mx-auto transition-all shadow-xl
                 ${isSupported 
-                  ? 'bg-emerald-100 text-emerald-700 cursor-default' 
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg hover:shadow-xl hover:-translate-y-0.5'}
+                  ? 'bg-emerald-500 text-white shadow-emerald-200' 
+                  : 'bg-slate-900 text-white shadow-slate-300 hover:scale-105 active:scale-95'}
               `}
             >
               {isSupported ? (
                 <>
-                  <Check className="w-5 h-5" /> Supported
+                  <Check className="w-6 h-6 stroke-[3px]" /> Supported!
                 </>
               ) : (
                 <>
-                  <ThumbsUp className="w-5 h-5" /> Support This Issue
+                  <ThumbsUp className="w-6 h-6" /> Count Me In
                 </>
               )}
             </button>
-          </div>
         </div>
       )}
 
-      {/* STAGE 3: IDEATION SECTION */}
+      {/* STAGE 3/4: IDEATION & VOTING SECTION */}
       {(issue.stage === IssueStage.IDEATE || issue.stage === IssueStage.VOTE) && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-slate-800">Proposed Solutions ({issue.solutions.length})</h3>
+        <div className="space-y-8">
+          <div className="flex items-center justify-between px-2">
+            <div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                    {issue.stage === IssueStage.VOTE ? 'Live Poll' : 'Proposed Plans'}
+                </h3>
+                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">
+                    {issue.solutions.length} community proposals
+                </p>
+            </div>
             
-            {/* Admin control for demo purposes */}
             {currentUser.role === UserRole.ADMIN && issue.stage === IssueStage.IDEATE && (
               <button 
                 onClick={handleMoveToVote}
                 disabled={issue.solutions.length < 2}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-purple-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-purple-200 hover:scale-105 disabled:opacity-50 transition-all"
               >
-                {issue.solutions.length < 2 ? 'Need 2+ Solutions to Vote' : 'Admin: Open Voting'}
+                {issue.solutions.length < 2 ? 'Need more plans' : 'Open Voting'}
               </button>
             )}
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2">
             {issue.solutions.map(solution => {
                const votePct = totalVotes > 0 ? Math.round((solution.votes.length / totalVotes) * 100) : 0;
                const userVotedForThis = solution.votes.includes(currentUser.id);
@@ -209,45 +275,51 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ issue, currentUser, on
                return (
                 <div 
                   key={solution.id} 
-                  className={`relative bg-white rounded-xl p-5 border transition-all
-                    ${issue.stage === IssueStage.VOTE && userVotedForThis ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200'}
+                  className={`relative bg-white rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.03)] border transition-all duration-300
+                    ${issue.stage === IssueStage.VOTE && userVotedForThis ? 'border-indigo-400 ring-4 ring-indigo-500/5' : 'border-white'}
                   `}
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex flex-col gap-1">
-                      <span className="font-bold text-slate-800">{solution.authorName}</span>
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="space-y-2">
+                      <p className="text-sm font-black text-slate-900">{solution.authorName}</p>
                       <ExpertBadge skills={solution.authorSkills} />
                     </div>
-                    <span className="font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded text-sm">
-                      ${solution.estimatedCost.toLocaleString()}
-                    </span>
+                    <div className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+                        <span className="font-black text-slate-800 tracking-tight">
+                        ${solution.estimatedCost.toLocaleString()}
+                        </span>
+                    </div>
                   </div>
                   
-                  <ImpactCalculator cost={solution.estimatedCost} />
+                  <p className="text-slate-600 text-sm leading-relaxed mb-6 font-medium">
+                    {solution.description}
+                  </p>
                   
-                  <p className="text-slate-600 mt-3 mb-4">{solution.description}</p>
+                  <ImpactCalculator cost={solution.estimatedCost} />
 
                   {issue.stage === IssueStage.VOTE ? (
-                     <div className="mt-4 pt-4 border-t border-slate-100">
-                        <div className="flex justify-between items-end mb-2">
-                          <span className="text-2xl font-bold text-slate-800">{votePct}%</span>
-                          <span className="text-sm text-slate-400">{solution.votes.length} votes</span>
+                     <div className="mt-8 pt-6 border-t border-slate-50 space-y-4">
+                        <div className="flex justify-between items-end">
+                          <span className="text-3xl font-black text-slate-900">{votePct}%</span>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{solution.votes.length} votes</span>
                         </div>
-                        <div className="w-full bg-slate-100 h-2 rounded-full mb-4">
-                           <div className="bg-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: `${votePct}%` }}></div>
+                        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                           <div className="bg-indigo-600 h-full transition-all duration-1000 ease-out" style={{ width: `${votePct}%` }}></div>
                         </div>
                         <button
                           onClick={() => handleVote(solution.id)}
-                          className={`w-full py-2 rounded-lg font-bold transition-colors
-                            ${userVotedForThis ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}
+                          className={`w-full py-4 rounded-2xl font-black tracking-widest uppercase text-xs transition-all
+                            ${userVotedForThis 
+                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' 
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}
                           `}
                         >
-                          {userVotedForThis ? 'Your Choice' : 'Vote'}
+                          {userVotedForThis ? 'Selected' : 'Vote for this plan'}
                         </button>
                      </div>
                   ) : (
-                    <div className="text-xs text-slate-400 flex items-center gap-1">
-                      <Lock className="w-3 h-3" /> Voting locked until ideation phase ends
+                    <div className="mt-8 pt-6 border-t border-slate-50 text-[10px] text-slate-300 font-black uppercase tracking-widest flex items-center gap-2">
+                      <Lock className="w-4 h-4" /> Voting opens after ideation
                     </div>
                   )}
                 </div>
@@ -257,127 +329,240 @@ export const IssueDetail: React.FC<IssueDetailProps> = ({ issue, currentUser, on
 
           {/* New Solution Form (Only visible in IDEATE) */}
           {issue.stage === IssueStage.IDEATE && (
-            <>
-              {/* AI Assistance Section */}
-              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-100 mt-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <Sparkles className="w-24 h-24 text-indigo-500" />
+            <div className="space-y-6 pt-4">
+              {/* AI Assistance Section - Redesigned */}
+              <div className="bg-gradient-to-br from-[#E6E6F5] to-[#D1D1EB] rounded-[2.5rem] p-8 shadow-sm border border-white/50 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:scale-110 transition-transform duration-700">
+                    <Sparkles className="w-32 h-32 text-indigo-900" />
                 </div>
                 
                 <div className="relative z-10">
-                  <h4 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-indigo-600" />
-                    Need ideas? Ask AI
+                  <h4 className="font-black text-indigo-950 text-xl mb-2 flex items-center gap-2">
+                    <Sparkles className="w-6 h-6 text-indigo-800" />
+                    Resident Intelligence
                   </h4>
-                  <p className="text-sm text-indigo-700 mb-4 max-w-xl">
-                    Use our AI assistant to research solutions and estimated costs based on real-world data and community standards.
+                  <p className="text-indigo-900/60 font-bold text-sm mb-6 max-w-lg">
+                    I'll search local vendors in <strong>{COMMUNITY_INFO.city}</strong> and create a blueprint for this project.
                   </p>
                   
-                  <div className="flex flex-wrap gap-3">
-                    {!isAiLoading && (
-                      <button 
-                        onClick={handleAiSuggest}
-                        className="bg-white text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-50 transition-colors shadow-sm flex items-center gap-2"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        {aiSuggestion ? 'Regenerate Suggestion' : 'Generate Suggestions'}
-                      </button>
-                    )}
-                    
-                    {isAiLoading && (
-                      <div className="flex items-center gap-2 text-indigo-600 font-medium">
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Researching solutions...
-                      </div>
-                    )}
-                  </div>
+                  {!isAiLoading ? (
+                    <button 
+                      onClick={handleAiSuggest}
+                      className="bg-indigo-900 text-white px-8 py-3.5 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-xl shadow-indigo-200 flex items-center gap-3 uppercase tracking-widest"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      {aiSuggestion ? 'Refresh AI Analysis' : 'Run AI Analysis'}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-3 text-indigo-900 font-black text-sm uppercase tracking-widest">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      Generating Blueprint...
+                    </div>
+                  )}
 
                   {aiSuggestion && (
-                    <div className="bg-white/80 rounded-lg p-4 border border-indigo-100 mt-4 shadow-sm">
-                      <div className="prose prose-sm prose-indigo max-w-none mb-4 whitespace-pre-wrap text-slate-700">
-                          {aiSuggestion.text}
+                    <div className="mt-8 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                      <div className="bg-white/40 backdrop-blur-md rounded-2xl p-4 border border-white/50 inline-flex items-center gap-2">
+                        <DollarSign className="w-5 h-5 text-indigo-900" />
+                        <span className="font-black text-indigo-950">Est. Budget: {aiSuggestion.estimatedBudget}</span>
                       </div>
-                      
-                      {aiSuggestion.sources.length > 0 && (
-                        <div className="border-t border-indigo-100 pt-3 mt-3">
-                          <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Sources</p>
-                          <div className="flex flex-wrap gap-2">
-                            {aiSuggestion.sources.map((source, idx) => (
-                              <a 
-                                key={idx}
-                                href={source.uri}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs bg-white border border-indigo-200 text-indigo-600 px-2 py-1 rounded hover:underline truncate max-w-xs"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                {source.title}
-                              </a>
-                            ))}
+
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {aiSuggestion.contractors.map((contractor, idx) => (
+                          <div key={idx} className="bg-white/60 backdrop-blur-xl rounded-[1.5rem] p-5 border border-white/80 shadow-sm hover:shadow-md transition-all">
+                            <h5 className="font-black text-slate-800 text-lg mb-1">{contractor.name}</h5>
+                            <p className="text-[10px] text-indigo-600 font-black mb-3 uppercase tracking-widest">{contractor.specialty}</p>
+                            
+                            <div className="space-y-2 mb-6">
+                              <div className="flex items-center gap-2 text-xs text-slate-500 font-bold">
+                                <Phone className="w-4 h-4 text-slate-400" />
+                                <span className="font-mono">{contractor.phone || 'N/A'}</span>
+                              </div>
+                            </div>
+
+                            <button 
+                              onClick={() => handleUseContractor(contractor)}
+                              className="w-full bg-indigo-900 text-white hover:bg-indigo-950 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+                            >
+                              <PlusCircle className="w-4 h-4" />
+                              Use as Base
+                            </button>
                           </div>
-                        </div>
-                      )}
-                      
-                      <div className="mt-4 pt-3 border-t border-indigo-100 text-xs text-indigo-500">
-                        * Cost estimates are approximate. Please verify with local contractors.
+                        ))}
+                      </div>
+
+                      {/* Collapsible Analysis */}
+                      <div className="bg-white/80 rounded-[2rem] overflow-hidden border border-white shadow-sm">
+                        <button 
+                          onClick={() => setShowFullAnalysis(!showFullAnalysis)}
+                          className="w-full flex items-center justify-between p-5 text-xs font-black text-indigo-950 uppercase tracking-widest hover:bg-slate-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                             <ClipboardList className="w-5 h-5" />
+                             Project Analysis & Action Plan
+                          </div>
+                          {showFullAnalysis ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                        </button>
+                        
+                        {showFullAnalysis && (
+                          <div className="p-8 bg-white border-t border-slate-50">
+                            <div className="prose prose-sm prose-indigo max-w-none text-slate-600 font-medium">
+                                <ReactMarkdown>{aiSuggestion.analysis}</ReactMarkdown>
+                            </div>
+                            
+                            {aiSuggestion.sources.length > 0 && (
+                              <div className="border-t border-slate-50 pt-6 mt-8">
+                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-3">Grounding Data</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {aiSuggestion.sources.map((source, idx) => (
+                                    <a 
+                                      key={idx}
+                                      href={source.uri}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2 text-[10px] bg-slate-50 border border-slate-100 text-slate-500 px-3 py-2 rounded-xl font-black hover:bg-white hover:text-indigo-600 transition-all uppercase tracking-tighter"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                      {source.title.slice(0, 30)}...
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Solution Form */}
-              <div className="bg-indigo-50 rounded-xl p-6 border border-indigo-100 mt-6">
-                <h4 className="font-bold text-indigo-900 mb-4 flex items-center gap-2">
-                  <Send className="w-4 h-4" /> Propose a Solution
+              {/* Solution Form - Modern Styled */}
+              <div id="solution-form" className="bg-white rounded-[2.5rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-white scroll-mt-24">
+                <h4 className="font-black text-slate-900 text-xl mb-6 flex items-center gap-3">
+                  <div className="bg-slate-900 text-white p-2 rounded-xl">
+                    <Send className="w-5 h-5" />
+                  </div>
+                  Draft your proposal
                 </h4>
-                <form onSubmit={handleSubmitSolution} className="space-y-4">
+                <form onSubmit={handleSubmitSolution} className="space-y-6">
                   <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Plan Description</label>
                     <textarea 
                       required
                       value={solutionDesc}
                       onChange={e => setSolutionDesc(e.target.value)}
-                      className="w-full p-3 rounded-lg border-indigo-200 focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Describe your solution clearly..."
-                      rows={3}
+                      className="w-full bg-slate-50 border-none rounded-3xl p-6 font-medium text-slate-700 placeholder:text-slate-300 focus:ring-2 focus:ring-indigo-500/10 transition-all resize-none"
+                      placeholder="How should we fix this? Outline the steps..."
+                      rows={6}
                     />
                   </div>
-                  <div className="flex gap-4 items-center">
-                    <div className="relative flex-1">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                        <DollarSign className="w-4 h-4" />
-                      </div>
-                      <input 
-                        required
-                        type="number"
-                        min="0"
-                        value={solutionCost}
-                        onChange={e => setSolutionCost(Number(e.target.value))}
-                        className="w-full pl-9 p-2.5 rounded-lg border-indigo-200 focus:ring-2 focus:ring-indigo-500"
-                        placeholder="Est. Cost"
-                      />
+                  <div className="grid sm:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Estimated Cost ($)</label>
+                        <div className="relative">
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                <DollarSign className="w-5 h-5" />
+                            </div>
+                            <input 
+                                id="cost-input"
+                                required
+                                type="number"
+                                min="0"
+                                value={solutionCost}
+                                onChange={e => setSolutionCost(Number(e.target.value))}
+                                className="w-full pl-11 pr-6 py-4 bg-slate-50 border-none rounded-2xl font-black text-slate-900 focus:ring-2 focus:ring-indigo-500/10 transition-all"
+                                placeholder="Total Quote"
+                            />
+                        </div>
                     </div>
-                    <div className="flex-1">
-                      {/* Preview Impact Badge */}
+                    <div className="flex flex-col justify-end">
                       {typeof solutionCost === 'number' && solutionCost > 0 && (
-                          <ImpactCalculator cost={solutionCost} />
+                          <div className="bg-emerald-50 text-emerald-700 px-4 py-3 rounded-2xl border border-emerald-100 flex items-center justify-center">
+                             <ImpactCalculator cost={solutionCost} />
+                          </div>
                       )}
                     </div>
                   </div>
-                  <div className="flex justify-end">
-                    <button 
-                      type="submit"
-                      className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700 transition-colors"
-                    >
-                      Submit Proposal
-                    </button>
-                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-slate-200 hover:scale-[1.01] active:scale-[0.99] transition-all uppercase tracking-widest"
+                  >
+                    Post Proposal
+                  </button>
                 </form>
               </div>
-            </>
+            </div>
           )}
         </div>
       )}
+
+      {/* DISCUSSION SECTION - Redesigned */}
+      <div className="bg-white rounded-[2.5rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-white mt-8">
+          <div className="flex items-center justify-between mb-10">
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                    Community Chat
+                </h3>
+                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">
+                    {issue.comments?.length || 0} messages
+                </p>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-2xl">
+                <MessageSquare className="w-6 h-6 text-slate-400" />
+              </div>
+          </div>
+
+          <div className="space-y-8">
+              {issue.comments && issue.comments.map(comment => {
+                  const isExpert = comment.authorSkills?.some(s => 
+                      ['Resident Architect', 'Resident Accountant', 'Property Manager'].includes(s)
+                  );
+                  
+                  return (
+                  <div key={comment.id} className="flex gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm shrink-0 shadow-sm ${isExpert ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-100' : 'bg-slate-100 text-slate-500'}`}>
+                          {comment.authorName.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-baseline mb-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-black text-sm text-slate-900">{comment.authorName}</span>
+                                {isExpert && <ExpertBadge skills={comment.authorSkills} />}
+                              </div>
+                              <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter whitespace-nowrap">{new Date(comment.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          <div className={`p-5 rounded-3xl rounded-tl-none font-medium text-sm leading-relaxed ${isExpert ? 'bg-amber-50/50 text-amber-950 border border-amber-100/50' : 'bg-slate-50 text-slate-600'}`}>
+                              {comment.text}
+                          </div>
+                      </div>
+                  </div>
+                  );
+              })}
+
+              <form onSubmit={handlePostComment} className="flex gap-4 pt-8 border-t border-slate-50 items-center">
+                  <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center shrink-0 shadow-lg shadow-slate-200">
+                      <span className="text-xs font-black text-white">{currentUser.name.charAt(0)}</span>
+                  </div>
+                  <div className="flex-1 relative">
+                      <input 
+                        type="text"
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="Say something helpful..."
+                        className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 font-bold text-slate-700 placeholder:text-slate-300 focus:ring-2 focus:ring-indigo-500/10 transition-all text-sm pr-14"
+                      />
+                      <button 
+                        type="submit"
+                        disabled={!newComment.trim()}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 bg-slate-900 text-white p-2 rounded-xl hover:bg-indigo-600 disabled:opacity-20 disabled:grayscale transition-all"
+                      >
+                          <Send className="w-5 h-5" />
+                      </button>
+                  </div>
+              </form>
+          </div>
+      </div>
     </div>
   );
 };

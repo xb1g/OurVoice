@@ -23,12 +23,12 @@ export const StageStepper: React.FC<StageStepperProps> = ({ currentStage }) => {
 
   return (
     <div className="w-full py-4">
-      <div className="flex items-center justify-between relative">
+      <div className="flex items-center justify-between relative px-2">
         {/* Connector Line */}
-        <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-slate-100 -z-10" />
+        <div className="absolute left-6 right-6 top-[18px] transform -translate-y-1/2 h-1.5 bg-slate-100 rounded-full -z-10" />
         <div 
-            className="absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-indigo-500 -z-10 transition-all duration-500" 
-            style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
+            className="absolute left-6 top-[18px] transform -translate-y-1/2 h-1.5 bg-indigo-600 rounded-full -z-10 transition-all duration-700 ease-out" 
+            style={{ width: `calc(${(currentStepIndex / (steps.length - 1)) * 100}% - 12px)` }}
         />
 
         {steps.map((step, index) => {
@@ -36,19 +36,20 @@ export const StageStepper: React.FC<StageStepperProps> = ({ currentStage }) => {
           const isCurrent = index === currentStepIndex;
 
           return (
-            <div key={step.id} className="flex flex-col items-center bg-white px-2">
+            <div key={step.id} className="flex flex-col items-center relative">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300
-                  ${isCompleted ? 'bg-indigo-500 border-indigo-500 text-white' : ''}
-                  ${isCurrent ? 'bg-white border-indigo-600 text-indigo-600 scale-110' : ''}
-                  ${!isCompleted && !isCurrent ? 'bg-white border-slate-200 text-slate-300' : ''}
+                className={`w-9 h-9 rounded-full flex items-center justify-center border-4 transition-all duration-500 shadow-sm
+                  ${isCompleted ? 'bg-indigo-600 border-indigo-100 text-white' : ''}
+                  ${isCurrent ? 'bg-white border-indigo-600 text-indigo-600 scale-125 z-10 shadow-lg ring-4 ring-indigo-50' : ''}
+                  ${!isCompleted && !isCurrent ? 'bg-white border-slate-100 text-slate-300' : ''}
                 `}
               >
-                {isCompleted ? <Check className="w-5 h-5" /> : <span className="text-xs font-bold">{index + 1}</span>}
+                {isCompleted ? <Check className="w-4 h-4 stroke-[4px]" /> : <span className="text-[10px] font-black">{index + 1}</span>}
               </div>
               <span 
-                className={`text-xs mt-2 font-medium 
-                  ${isCurrent ? 'text-indigo-700' : 'text-slate-500'}
+                className={`text-[10px] mt-4 font-black uppercase tracking-widest transition-colors duration-500
+                  ${isCurrent ? 'text-indigo-700' : 'text-slate-400'}
+                  ${isCompleted ? 'text-indigo-400' : ''}
                 `}
               >
                 {step.label}

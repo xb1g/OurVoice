@@ -11,35 +11,72 @@ export enum UserRole {
   ADMIN = 'ADMIN'
 }
 
+export const ISSUE_CATEGORIES = [
+  'Maintenance & Facilities',
+  'Noise & Disturbances',
+  'Cleanliness & Hygiene',
+  'Parking & Traffic',
+  'Safety & Security',
+  'Rules & Policy Proposals',
+  'Community & Improvements',
+  'General / Other'
+] as const;
+
+export type IssueCategory = typeof ISSUE_CATEGORIES[number];
+
 export interface User {
   id: string;
   name: string;
   role: UserRole;
-  skills?: string[]; // Changed from expertise string to skills array
+  skills?: string[];
   avatarUrl?: string;
+}
+
+export interface Comment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorSkills?: string[];
+  text: string;
+  createdAt: string;
 }
 
 export interface Solution {
   id: string;
   authorId: string;
   authorName: string;
-  authorSkills?: string[]; // Changed from authorExpertise string to authorSkills array
+  authorSkills?: string[];
   description: string;
   estimatedCost: number;
-  votes: string[]; // Array of User IDs
+  votes: string[];
 }
 
 export interface Issue {
   id: string;
   title: string;
   description: string;
-  category: 'Maintenance' | 'Amenities' | 'Budget';
+  category: IssueCategory;
   stage: IssueStage;
   authorId: string;
   authorName: string;
   createdAt: string;
-  supporters: string[]; // Array of User IDs (for Validation stage)
+  supporters: string[];
   solutions: Solution[];
+  upvotes: string[];
+  downvotes: string[];
+  comments: Comment[];
+  views: number;
+  rating?: number; // Community satisfaction rating for closed projects
+}
+
+export interface Vendor {
+  id: string;
+  name: string;
+  category: string;
+  phone: string;
+  website?: string;
+  rating: number;
+  recommendedBy?: string;
 }
 
 export interface BuildingStats {
@@ -47,4 +84,37 @@ export interface BuildingStats {
   issuesResolvedMonth: number;
   moneySaved: number;
   totalUnits: number;
+}
+
+export interface FinancialData {
+  reserveFund: number;
+  operatingAccount: number;
+  lastUpdated: string;
+  monthlyAssessment: number; // What each resident pays
+  recurringPayments: {
+    id: string;
+    vendor: string;
+    amount: number;
+    frequency: 'Monthly' | 'Quarterly' | 'Annual';
+    category: string;
+  }[];
+  recentExpenses: {
+    id: string;
+    description: string;
+    amount: number;
+    date: string;
+    category: string;
+  }[];
+}
+
+export interface CommunityInfo {
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  units: number;
+  yearBuilt: number;
+  amenities: string[];
+  financials: FinancialData;
 }
