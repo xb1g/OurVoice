@@ -31,10 +31,10 @@ export const generateSolutionSuggestion = async (
       Description: "${description}"
 
       Task:
-      1. **Analyze**: Briefly validate the problem and create a step-by-step action plan.
-      2. **Search**: Use Google Search to find 2-3 specific, highly-rated local contractors in ${community.city}, ${community.state} relevant to this issue.
+      1. **Analyze**: Briefly validate the problem and create a step-by-step action plan in Markdown format. Be concise.
+      2. **Search**: Use Google Search to find 2-3 specific, highly-rated local contractors in ${community.city}, ${community.state} relevant to this issue. Focus on businesses that actually serve this zip code.
       3. **Structure**: Return the result as JSON.
-         - For contractors, include Name, Phone, Website, Specialty, and a Note (including any pricing mentions found).
+         - For contractors, include Name, Phone, Website, Specialty, and a short note (1-2 sentences) about their suitability.
          - Include an estimated budget range for the whole project.
     `;
 
@@ -60,7 +60,7 @@ export const generateSolutionSuggestion = async (
                   specialty: { type: Type.STRING },
                   website: { type: Type.STRING },
                   phone: { type: Type.STRING },
-                  note: { type: Type.STRING, description: "Why they are a good fit and any specific pricing info found." },
+                  note: { type: Type.STRING, description: "Suitability note." },
                 },
                 required: ["name", "specialty"]
               }

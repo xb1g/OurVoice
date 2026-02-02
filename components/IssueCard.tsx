@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { Issue, IssueStage } from '../types';
-import { ArrowRight, MessageSquare, ThumbsUp, Users, ArrowBigUp, ArrowBigDown, Eye, Activity } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp, Users, ArrowBigUp, ArrowBigDown, Eye, Activity, Hammer } from 'lucide-react';
 import { TOTAL_UNITS } from '../constants';
 
 interface IssueCardProps {
@@ -15,14 +16,12 @@ export const IssueCard: React.FC<IssueCardProps> = ({ issue, currentUserIds, onC
   const userUpvoted = issue.upvotes?.includes(currentUserIds);
   const userDownvoted = issue.downvotes?.includes(currentUserIds);
 
-  const totalVotes = (issue.upvotes?.length || 0) + (issue.downvotes?.length || 0);
-  const participationPct = Math.round((totalVotes / TOTAL_UNITS) * 100);
-
   const getStageColor = (stage: IssueStage) => {
     switch (stage) {
       case IssueStage.VALIDATE: return 'bg-orange-50 text-orange-700 border border-orange-100';
       case IssueStage.IDEATE: return 'bg-blue-50 text-blue-700 border border-blue-100';
       case IssueStage.VOTE: return 'bg-purple-50 text-purple-700 border border-purple-100';
+      case IssueStage.ONGOING: return 'bg-emerald-50 text-emerald-700 border border-emerald-100';
       case IssueStage.CLOSED: return 'bg-slate-100 text-slate-600 border border-slate-200';
       default: return 'bg-slate-50 text-slate-700';
     }
@@ -110,6 +109,12 @@ export const IssueCard: React.FC<IssueCardProps> = ({ issue, currentUserIds, onC
                 <div className="flex items-center gap-2 text-purple-600 text-xs font-bold bg-purple-50 pl-2 pr-3 py-1 rounded-full">
                     <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></div>
                     Voting Open
+                </div>
+            )}
+            {issue.stage === IssueStage.ONGOING && (
+                <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold bg-emerald-50 pl-2 pr-3 py-1 rounded-full">
+                    <Hammer className="w-3.5 h-3.5" />
+                    Project Ongoing
                 </div>
             )}
           </div>

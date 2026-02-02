@@ -1,8 +1,10 @@
+
 export enum IssueStage {
   RAISE = 'RAISE',
   VALIDATE = 'VALIDATE',
   IDEATE = 'IDEATE',
   VOTE = 'VOTE',
+  ONGOING = 'ONGOING',
   CLOSED = 'CLOSED'
 }
 
@@ -51,6 +53,14 @@ export interface Solution {
   votes: string[];
 }
 
+export interface AiContractor {
+  name: string;
+  specialty: string;
+  website: string;
+  phone: string;
+  note: string;
+}
+
 export interface Issue {
   id: string;
   title: string;
@@ -66,7 +76,13 @@ export interface Issue {
   downvotes: string[];
   comments: Comment[];
   views: number;
-  rating?: number; // Community satisfaction rating for closed projects
+  rating?: number;
+  // AI Cache fields
+  aiAnalysis?: string;
+  aiContractors?: AiContractor[];
+  aiBudget?: string;
+  aiSources?: { uri: string; title: string }[];
+  aiLastSearched?: string;
 }
 
 export interface Vendor {
@@ -90,7 +106,7 @@ export interface FinancialData {
   reserveFund: number;
   operatingAccount: number;
   lastUpdated: string;
-  monthlyAssessment: number; // What each resident pays
+  monthlyAssessment: number;
   recurringPayments: {
     id: string;
     vendor: string;

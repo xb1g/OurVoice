@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { IssueStage } from '../types';
 import { Check, Circle } from 'lucide-react';
@@ -11,11 +12,12 @@ const steps = [
   { id: IssueStage.VALIDATE, label: 'Validate' },
   { id: IssueStage.IDEATE, label: 'Ideate' },
   { id: IssueStage.VOTE, label: 'Vote' },
+  { id: IssueStage.ONGOING, label: 'Ongoing' },
 ];
 
 export const StageStepper: React.FC<StageStepperProps> = ({ currentStage }) => {
   const getCurrentStepIndex = () => {
-    if (currentStage === IssueStage.CLOSED) return 4;
+    if (currentStage === IssueStage.CLOSED) return 5;
     return steps.findIndex(s => s.id === currentStage);
   };
 
