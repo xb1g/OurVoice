@@ -1,0 +1,13 @@
+cli:
+  backend: "claude"
+  args: ["--dangerously-skip-permissions"]
+
+run:
+  max_iterations: 100
+  continue: true
+
+quality:
+  verify_commands:
+    - "pnpm typecheck"
+    - "pnpm test"
+    - "pnpm build"

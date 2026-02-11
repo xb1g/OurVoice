@@ -1,0 +1,329 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  user
+  customer_admin
+  superadmin
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
+enum AuditAction {
+  user_created
+  user_updated
+  user_disabled
+  customer_created
+  customer_updated
+  invite_sent
+  invite_accepted
+  invite_revoked
+  login_success
+  login_failed
+  project_created
+  project_updated
+}
+
+enum MembershipStatus {
+  active
+  suspended
+}
+
+enum IssueStage {
+  RAISE
+  VALIDATE
+  IDEATE
+  VOTE
+  ONGOING
+  CLOSED
+}
+
+enum IssueVoteKind {
+  up
+  down
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  name      String
+  status    String   @default("active")
+  plan      String   @default("free")
+  createdAt DateTime @default(now())
+
+  users        User[]
+  projects     Project[]
+  invites      Invite[]
+  auditLogs    AuditLog[]
+  memberships  Membership[]
+  featureFlags FeatureFlag[]
+  sessions     UserSession[]
+  issues       Issue[]
+}
+
+model User {
+  id          String     @id @default(uuid())
+  authUserId  String     @unique @map("auth_user_id")
+  customerId  String?    @map("customer_id")
+  role        UserRole   @default(user)
+  status      UserStatus @default(active)
+  email       String
+  name        String?
+  createdAt   DateTime   @default(now())
+
+  customer    Customer?  @relation(fields: [customerId], references: [id])
+
+  ownedProjects Project[]  @relation("ProjectOwner")
+  sentInvites   Invite[]   @relation("InviteSender")
+  auditLogs     AuditLog[] @relation("AuditActor")
+  memberships   Membership[]
+  sessions      UserSession[]
+  createdIssues Issue[]             @relation("IssueAuthor")
+  issueSupports IssueSupport[]
+  issueVotes    IssueVote[]
+  issueComments IssueComment[]
+  issueSolutions IssueSolution[]
+  issueSolutionVotes IssueSolutionVote[]
+  issueAiSnapshots   IssueAiSnapshot[]
+
+  @@index([customerId])
+  @@index([role])
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  customerId  String   @map("customer_id")
+  name        String
+  ownerId     String   @map("owner_id")
+  createdAt   DateTime @default(now())
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+  owner       User     @relation("ProjectOwner", fields: [ownerId], references: [id])
+
+  @@index([customerId])
+  @@index([ownerId])
+}
+
+model Invite {
+  id          String       @id @default(uuid())
+  email       String
+  role        UserRole
+  status      InviteStatus @default(pending)
+  token       String       @unique
+  expiresAt   DateTime
+  createdAt   DateTime     @default(now())
+
+  customerId  String?      @map("customer_id")
+  createdById String       @map("created_by_id")
+
+  customer    Customer?    @relation(fields: [customerId], references: [id])
+  createdBy   User         @relation("InviteSender", fields: [createdById], references: [id])
+
+  @@index([email])
+  @@index([customerId])
+  @@index([status])
+}
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  action      AuditAction
+  entityType  String
+  entityId    String?
+  data        Json?
+  createdAt   DateTime    @default(now())
+
+  customerId  String?     @map("customer_id")
+  actorId     String?     @map("actor_id")
+
+  customer    Customer?   @relation(fields: [customerId], references: [id])
+  actor       User?       @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([customerId])
+  @@index([actorId])
+  @@index([action])
+}
+
+model Membership {
+  id          String            @id @default(uuid())
+  userId      String            @map("user_id")
+  customerId  String            @map("customer_id")
+  role        UserRole          @default(user)
+  status      MembershipStatus  @default(active)
+  createdAt   DateTime          @default(now())
+
+  user        User              @relation(fields: [userId], references: [id])
+  customer    Customer          @relation(fields: [customerId], references: [id])
+
+  @@unique([userId, customerId])
+  @@index([customerId])
+}
+
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  customerId  String   @map("customer_id")
+  key         String
+  enabled     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+
+  @@unique([customerId, key])
+  @@index([customerId])
+}
+
+model UserSession {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  customerId  String?  @map("customer_id")
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  customer    Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([userId])
+  @@index([customerId])
+}
+
+model Issue {
+  id          String      @id @default(uuid())
+  customerId  String      @map("customer_id")
+  authorId    String      @map("author_id")
+  title       String
+  description String
+  category    String
+  stage       IssueStage  @default(VALIDATE)
+  views       Int         @default(0)
+  rating      Float?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  customer    Customer            @relation(fields: [customerId], references: [id])
+  author      User                @relation("IssueAuthor", fields: [authorId], references: [id])
+  supports    IssueSupport[]
+  votes       IssueVote[]
+  comments    IssueComment[]
+  solutions   IssueSolution[]
+  aiSnapshots IssueAiSnapshot[]
+
+  @@index([customerId])
+  @@index([authorId])
+  @@index([stage])
+  @@map("issues")
+}
+
+model IssueSupport {
+  id        String   @id @default(uuid())
+  issueId   String   @map("issue_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([issueId, userId])
+  @@index([issueId])
+  @@index([userId])
+  @@map("issue_supports")
+}
+
+model IssueVote {
+  id        String       @id @default(uuid())
+  issueId   String       @map("issue_id")
+  userId    String       @map("user_id")
+  kind      IssueVoteKind
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([issueId, userId])
+  @@index([issueId])
+  @@index([userId])
+  @@map("issue_votes")
+}
+
+model IssueComment {
+  id           String   @id @default(uuid())
+  issueId      String   @map("issue_id")
+  authorId     String   @map("author_id")
+  authorName   String   @map("author_name")
+  authorSkills Json?    @map("author_skills")
+  text         String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  issue  Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([issueId])
+  @@index([authorId])
+  @@map("issue_comments")
+}
+
+model IssueSolution {
+  id           String   @id @default(uuid())
+  issueId      String   @map("issue_id")
+  authorId     String   @map("author_id")
+  authorName   String   @map("author_name")
+  authorSkills Json?    @map("author_skills")
+  description  String
+  estimatedCost Float   @map("estimated_cost")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  issue  Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes  IssueSolutionVote[]
+
+  @@index([issueId])
+  @@index([authorId])
+  @@map("issue_solutions")
+}
+
+model IssueSolutionVote {
+  id         String   @id @default(uuid())
+  solutionId String   @map("solution_id")
+  userId     String   @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  solution IssueSolution @relation(fields: [solutionId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([solutionId, userId])
+  @@index([solutionId])
+  @@index([userId])
+  @@map("issue_solution_votes")
+}
+
+model IssueAiSnapshot {
+  id              String   @id @default(uuid())
+  issueId         String   @map("issue_id")
+  requestedById   String   @map("requested_by_id")
+  analysis        String
+  contractors     Json?
+  estimatedBudget String?  @map("estimated_budget")
+  sources         Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  issue       Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  requestedBy User  @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+
+  @@index([issueId])
+  @@index([requestedById])
+  @@map("issue_ai_snapshots")
+}

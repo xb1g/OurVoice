@@ -1,24 +1,17 @@
 {
-  "name": "hive.",
+  "name": "hive",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
+  "packageManager": "pnpm@10.25.0",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "lucide-react": "^0.563.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "@google/genai": "^1.39.0",
-    "react-markdown": "9"
-  },
-  "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "dev:web": "pnpm -C apps/web dev",
+    "dev:api": "pnpm -C apps/api dev",
+    "build": "pnpm build:web && pnpm -C apps/api typecheck",
+    "build:web": "pnpm -C apps/web build",
+    "preview:web": "pnpm -C apps/web preview",
+    "lint": "pnpm -C packages/shared typecheck && pnpm -C apps/web typecheck && pnpm -C apps/api typecheck",
+    "test": "pnpm -C apps/web test && pnpm -C apps/api test",
+    "typecheck": "pnpm -C packages/shared typecheck && pnpm -C apps/web typecheck && pnpm -C apps/api typecheck",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   }
 }

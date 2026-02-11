@@ -1,0 +1,37 @@
+name = "hive-api"
+main = "src/index.ts"
+compatibility_date = "2026-02-04"
+
+# Non-sensitive environment variables
+[vars]
+# SUPABASE_URL = "your-supabase-url"
+# ALLOWED_ORIGINS = "http://localhost:3000"
+
+# Sensitive variables should be set via:
+# 1. Local: .dev.vars file (automatically ignored by git)
+# 2. Production: wrangler secret put <NAME>
+#
+# Required secrets:
+# - SUPABASE_PUBLISHABLE_KEY
+# - SUPABASE_SECRET_KEY
+# - SUPABASE_PROJECT_REF
+# - GEMINI_API_KEY
+# Optional vars:
+# - INVITE_BASE_URL
+# - ALLOWED_ORIGINS
+
+[env.staging]
+name = "hive-api-staging"
+
+[env.staging.vars]
+# SUPABASE_URL = "https://<project>.supabase.co"
+# INVITE_BASE_URL = "https://staging.example.com"
+# ALLOWED_ORIGINS = "https://staging.example.com"
+
+[env.production]
+name = "hive-api-production"
+
+[env.production.vars]
+# SUPABASE_URL = "https://<project>.supabase.co"
+# INVITE_BASE_URL = "https://app.example.com"
+# ALLOWED_ORIGINS = "https://app.example.com"

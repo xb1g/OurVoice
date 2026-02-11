@@ -1,20 +1,21 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Hive Monorepo
 
-# Run and deploy your AI Studio app
+Workspaces:
+- apps/web: React + Vite frontend
+- apps/api: Hono (edge) API
+- packages/db: Prisma schema and client
+- packages/shared: Shared types/validators
 
-This contains everything you need to run your app locally.
+Common commands:
+- pnpm dev:web
+- pnpm dev:api
+- pnpm check
 
-View your app in AI Studio: https://ai.studio/apps/drive/1CuV7GUNoBgeEZik37bMzA0DxNVT4q6wQ
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+API env vars live in `apps/api/.dev.vars` (see `.dev.vars.example`):
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY`
+- `SUPABASE_PROJECT_REF`
+- `GEMINI_API_KEY`
+- `ALLOWED_ORIGINS`
+- `INVITE_BASE_URL` (optional)

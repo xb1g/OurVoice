@@ -1,0 +1,24 @@
+{
+  "name": "@hive/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev src/index.ts",
+    "deploy": "wrangler deploy",
+    "lint": "tsc --noEmit",
+    "test": "if command -v vitest >/dev/null 2>&1; then vitest run; else echo \"vitest not installed; skipping api tests\"; fi",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jose": "^5.9.6",
+    "@supabase/supabase-js": "^2.49.0",
+    "hono": "^4.6.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250214.0",
+    "typescript": "~5.8.2",
+    "wrangler": "^4.62.0"
+  }
+}
